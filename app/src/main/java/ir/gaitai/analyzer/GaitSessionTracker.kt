@@ -1,9 +1,8 @@
 package ir.gaitai.analyzer
 
 /**
- * Lightweight, on-device session tracker.
- * Step count is an estimate based on alternating ankle lift peaks;
- * it is not a clinical gait measurement.
+ * On-device exploratory gait tracker.
+ * Step count/cadence are estimates, not clinical measurements.
  */
 data class GaitMetrics(
     val durationSeconds: Int,
@@ -45,38 +44,55 @@ class GaitSessionTracker {
         lastRightStepAt = 0L
     }
 
-    fun addFrame(points: List<PosePoint>, bodyVisible: Boolean,
-                 nowMs: Long = android.os.SystemClock.elapsedRealtime()) {
+    fun addFrame(
+        points: List<PosePoint>,
+        bodyVisible: Boolean,
+        nowMs: Long = android.os.SystemClock.elapsedRealtime()
+    ) {
         if (!recording) return
         frames++
-        if (!bodyVisible || points.size < 33) return
-        visibleFrames++
+        if (bodyVisible) visibleFrames++
+        if (points.size < 29) return
 
+        // Foot landmarks can remain usable even when shoulders/hips are partly occluded.
         val left = points[27]
         val right = points[28]
-        middleLeft?.let { mid ->
-            val before = previousLeft
-            if (before != null && left.visibility >= 0.35f && mid.visibility >= 0.35f &&
-                before.visibility >= 0.35f && mid.y < before.y - 0.012f &&
-                mid.y < left.y - 0.012f && nowMs - lastLeftStepAt > 280L) {
-                steps++
-                lastLeftStepAt = nowMs
-            }
+        if (left.visibility >= 0.30f) {
+            detectFootStep(left, nowMs, true)
+        } else {
+            previousLeft = null
+            middleLeft = null
         }
-        middleRight?.let { mid ->
-            val before = previousRight
-            if (before != null && right.visibility >= 0.35f && mid.visibility >= 0.35f &&
-                before.visibility >= 0.35f && mid.y < before.y - 0.012f &&
-                mid.y < right.y - 0.012f && nowMs - lastRightStepAt > 280L) {
-                steps++
-                lastRightStepAt = nowMs
-            }
+        if (right.visibility >= 0.30f) {
+            detectFootStep(right, nowMs, false)
+        } else {
+            previousRight = null
+            middleRight = null
+        }
+    }
+
+    private fun detectFootStep(point: PosePoint, nowMs: Long, isLeft: Boolean) {
+        val previous = if (isLeft) previousLeft else previousRight
+        val middle = if (isLeft) middleLeft else middleRight
+        val lastStepAt = if (isLeft) lastLeftStepAt else lastRightStepAt
+
+        if (previous != null && middle != null &&
+            middle.visibility >= 0.30f &&
+            middle.y < previous.y - 0.004f &&
+            middle.y < point.y - 0.004f &&
+            nowMs - lastStepAt >= 350L
+        ) {
+            steps++
+            if (isLeft) lastLeftStepAt = nowMs else lastRightStepAt = nowMs
         }
 
-        previousLeft = middleLeft
-        middleLeft = Sample(nowMs, left.y, left.visibility)
-        previousRight = middleRight
-        middleRight = Sample(nowMs, right.y, right.visibility)
+        if (isLeft) {
+            previousLeft = middle
+            middleLeft = Sample(nowMs, point.y, point.visibility)
+        } else {
+            previousRight = middle
+            middleRight = Sample(nowMs, point.y, point.visibility)
+        }
     }
 
     fun finish(nowMs: Long = android.os.SystemClock.elapsedRealtime()): GaitMetrics {
