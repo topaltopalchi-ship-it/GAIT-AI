@@ -14,7 +14,7 @@ data class GaitMetrics(
 )
 
 class GaitSessionTracker {
-    private data class Sample(val timeMs: Long, val y: Float, val visibility: Float)
+    private data class Sample(val timeMs: Long, val signalY: Float, val visibility: Float)
 
     @Volatile private var recording = false
     private var startedAt = 0L
@@ -56,32 +56,38 @@ class GaitSessionTracker {
         if (bodyVisible) visibleFrames++
         if (points.size < 29) return
 
-        // Foot landmarks can remain usable even when shoulders/hips are partly occluded.
+        // Use ankle height relative to the pelvis to reduce false movement caused
+        // by the whole body/camera shifting vertically. Fall back to image Y if
+        // hip landmarks are unavailable.
+        val hipCenterY = if (points[23].visibility >= 0.25f && points[24].visibility >= 0.25f) {
+            (points[23].y + points[24].y) / 2f
+        } else 0f
+        val useRelativeY = hipCenterY > 0f
         val left = points[27]
         val right = points[28]
         if (left.visibility >= 0.30f) {
-            detectFootStep(left, nowMs, true)
+            detectFootStep(left, if (useRelativeY) left.y - hipCenterY else left.y, nowMs, true)
         } else {
             previousLeft = null
             middleLeft = null
         }
         if (right.visibility >= 0.30f) {
-            detectFootStep(right, nowMs, false)
+            detectFootStep(right, if (useRelativeY) right.y - hipCenterY else right.y, nowMs, false)
         } else {
             previousRight = null
             middleRight = null
         }
     }
 
-    private fun detectFootStep(point: PosePoint, nowMs: Long, isLeft: Boolean) {
+    private fun detectFootStep(point: PosePoint, signalY: Float, nowMs: Long, isLeft: Boolean) {
         val previous = if (isLeft) previousLeft else previousRight
         val middle = if (isLeft) middleLeft else middleRight
         val lastStepAt = if (isLeft) lastLeftStepAt else lastRightStepAt
 
         if (previous != null && middle != null &&
             middle.visibility >= 0.30f &&
-            middle.y < previous.y - 0.004f &&
-            middle.y < point.y - 0.004f &&
+            middle.signalY < previous.signalY - 0.0025f &&
+            middle.signalY < signalY - 0.0025f &&
             nowMs - lastStepAt >= 350L
         ) {
             steps++
@@ -90,10 +96,10 @@ class GaitSessionTracker {
 
         if (isLeft) {
             previousLeft = middle
-            middleLeft = Sample(nowMs, point.y, point.visibility)
+            middleLeft = Sample(nowMs, signalY, point.visibility)
         } else {
             previousRight = middle
-            middleRight = Sample(nowMs, point.y, point.visibility)
+            middleRight = Sample(nowMs, signalY, point.visibility)
         }
     }
 
