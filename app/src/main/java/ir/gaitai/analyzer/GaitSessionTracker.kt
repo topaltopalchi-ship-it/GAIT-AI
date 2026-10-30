@@ -16,7 +16,7 @@ data class GaitMetrics(
 class GaitSessionTracker {
     private data class Sample(val timeMs: Long, val y: Float, val visibility: Float)
 
-    private var recording = false
+    @Volatile private var recording = false
     private var startedAt = 0L
     private var frames = 0
     private var visibleFrames = 0
@@ -30,6 +30,7 @@ class GaitSessionTracker {
 
     val isRecording: Boolean get() = recording
 
+    @Synchronized
     fun start(nowMs: Long = android.os.SystemClock.elapsedRealtime()) {
         recording = true
         startedAt = nowMs
@@ -44,6 +45,7 @@ class GaitSessionTracker {
         lastRightStepAt = 0L
     }
 
+    @Synchronized
     fun addFrame(
         points: List<PosePoint>,
         bodyVisible: Boolean,
@@ -95,6 +97,7 @@ class GaitSessionTracker {
         }
     }
 
+    @Synchronized
     fun finish(nowMs: Long = android.os.SystemClock.elapsedRealtime()): GaitMetrics {
         recording = false
         val duration = ((nowMs - startedAt).coerceAtLeast(0L) / 1000L).toInt()
