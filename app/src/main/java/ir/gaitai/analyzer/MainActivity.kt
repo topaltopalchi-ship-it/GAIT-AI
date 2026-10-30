@@ -222,14 +222,18 @@ class MainActivity : AppCompatActivity() {
             poseAnalyzer = PoseAnalyzer(
                 context = this,
                 onPose = { points, visible ->
+                    // Count every analyzed camera frame on the analyzer thread.
+                    // Do not wait for the UI thread: dropped/delayed UI updates must
+                    // not silently remove samples from the gait session.
+                    if (sessionTracker.isRecording) {
+                        sessionTracker.addFrame(points, visible)
+                    }
                     runOnUiThread {
                         overlay.setLandmarks(points)
-                        if (sessionTracker.isRecording) {
-                            sessionTracker.addFrame(points, visible)
-                        }
-                        statusText.text = if (visible)
-                            "بدن شناسایی شد • نقاط مفصلی: ${points.size}"
-                        else "بدن کامل دیده نشد؛ فاصله و نور را تنظیم کنید."
+                        statusText.text = if (points.size >= 29)
+                            "اسکلت دریافت شد • ${points.size} نقطه • پاها: " +
+                                if (points[27].visibility >= 0.30f || points[28].visibility >= 0.30f) "قابل‌ردیابی" else "نامشخص"
+                        else "بدن در این فریم تشخیص داده نشد؛ تمام بدن و پاها را داخل کادر بیاورید."
                     }
                 },
                 onError = { message -> runOnUiThread { statusText.text = message } }
