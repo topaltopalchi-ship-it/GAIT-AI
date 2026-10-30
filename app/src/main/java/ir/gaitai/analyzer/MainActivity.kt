@@ -1,6 +1,7 @@
 package ir.gaitai.analyzer
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
@@ -17,6 +18,11 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -96,12 +102,17 @@ class MainActivity : AppCompatActivity() {
                 val result = sessionTracker.finish()
                 isEnabled = false
                 startButton.isEnabled = true
+                saveSession(result)
                 showReport(result)
             }
         }
         controls.addView(startButton, LinearLayout.LayoutParams(0, -2, 1f))
         controls.addView(stopButton, LinearLayout.LayoutParams(0, -2, 1f))
 
+        val historyButton = Button(this).apply {
+            text = "سوابق جلسات"
+            setOnClickListener { showHistory() }
+        }
         statusText = TextView(this).apply {
             text = "در انتظار دوربین…"
             setTextColor(Color.rgb(54, 214, 176))
@@ -124,10 +135,65 @@ class MainActivity : AppCompatActivity() {
         root.addView(subtitle)
         root.addView(cameraFrame, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(controls)
+        root.addView(historyButton, LinearLayout.LayoutParams(-1, -2))
         root.addView(statusText)
         root.addView(metricsText)
         root.addView(note)
         setContentView(root)
+    }
+
+    private fun saveSession(result: GaitMetrics) {
+        val prefs = getSharedPreferences("gait_ai_sessions", MODE_PRIVATE)
+        val oldItems = try {
+            JSONArray(prefs.getString("items", "[]") ?: "[]")
+        } catch (_: Exception) {
+            JSONArray()
+        }
+        val updated = JSONArray()
+        updated.put(JSONObject().apply {
+            put("savedAt", System.currentTimeMillis())
+            put("duration", result.durationSeconds)
+            put("steps", result.estimatedSteps)
+            put("cadence", result.cadenceStepsPerMinute)
+            put("frames", result.analyzedFrames)
+            put("visibility", result.visibilityPercent)
+        })
+        for (i in 0 until minOf(oldItems.length(), 29)) {
+            updated.put(oldItems.getJSONObject(i))
+        }
+        prefs.edit().putString("items", updated.toString()).apply()
+    }
+
+    private fun showHistory() {
+        val items = try {
+            JSONArray(getSharedPreferences("gait_ai_sessions", MODE_PRIVATE)
+                .getString("items", "[]") ?: "[]")
+        } catch (_: Exception) {
+            JSONArray()
+        }
+        if (items.length() == 0) {
+            AlertDialog.Builder(this)
+                .setTitle("سوابق جلسات")
+                .setMessage("هنوز گزارشی ذخیره نشده است.")
+                .setPositiveButton("باشه", null)
+                .show()
+            return
+        }
+        val formatter = SimpleDateFormat("yyyy/MM/dd  HH:mm", Locale.getDefault())
+        val report = buildString {
+            for (i in 0 until items.length()) {
+                val item = items.getJSONObject(i)
+                val date = formatter.format(Date(item.optLong("savedAt")))
+                append("${i + 1}) $date\n")
+                append("قدم تخمینی: ${item.optInt("steps")}  |  ریتم: ${item.optInt("cadence")} قدم/دقیقه\n")
+                append("مدت: ${item.optInt("duration")} ثانیه  |  وضوح بدن: ${item.optInt("visibility")}%\n\n")
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("سوابق جلسات (${items.length()})")
+            .setMessage(report)
+            .setPositiveButton("بستن", null)
+            .show()
     }
 
     private fun showReport(result: GaitMetrics) {
@@ -144,7 +210,7 @@ class MainActivity : AppCompatActivity() {
                 append("\nاین اعداد تخمینی‌اند و برای ارزیابی بالینی معتبر نیستند.")
             }
         }
-        statusText.text = "ثبت پایان یافت."
+        statusText.text = "ثبت پایان یافت؛ گزارش در سوابق ذخیره شد."
     }
 
     private fun startCamera() {
