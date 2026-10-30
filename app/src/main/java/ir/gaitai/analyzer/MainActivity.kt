@@ -59,7 +59,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(20, 18, 20, 8)
         }
         val subtitle = TextView(this).apply {
-            text = "تمام بدن را در کادر قرار دهید؛ ترجیحاً از نمای横 و با فاصله ثابت"
+            text = "تمام بدن را در کادر قرار دهید؛ ترجیحاً از نمای جانبی و با فاصله ثابت"
             setTextColor(Color.LTGRAY)
             textSize = 13f
             setPadding(20, 0, 20, 12)
