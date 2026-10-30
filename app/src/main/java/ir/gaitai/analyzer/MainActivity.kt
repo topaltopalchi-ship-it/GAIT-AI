@@ -204,11 +204,14 @@ class MainActivity : AppCompatActivity() {
             append("ریتم تخمینی: ${result.cadenceStepsPerMinute} قدم در دقیقه\n")
             append("قاب‌های تحلیل‌شده: ${result.analyzedFrames}\n")
             append("قاب‌های دارای بدن قابل‌مشاهده: ${result.visibilityPercent}%")
-            if (result.durationSeconds < 5 || result.estimatedSteps < 4) {
-                append("\nداده برای تحلیل اولیه کافی نیست؛ جلسه را طولانی‌تر تکرار کنید.")
-            } else {
-                append("\nاین اعداد تخمینی‌اند و برای ارزیابی بالینی معتبر نیستند.")
+            if (result.durationSeconds < 5 || result.analyzedFrames < 20) {
+                append("\nزمان یا تعداد فریم‌های ثبت‌شده برای تحلیل کافی نیست؛ دوربین و مجوز آن را بررسی کنید.")
+            } else if (result.visibilityPercent < 30) {
+                append("\nبخش زیادی از بدن در تصویر قابل‌تشخیص نبوده؛ تمام بدن و به‌ویژه پاها را داخل کادر نگه دارید.")
+            } else if (result.estimatedSteps < 4) {
+                append("\nقدم‌ها به‌خوبی تشخیص داده نشدند؛ با نمای جانبی، نور مناسب و نمایش کامل پاها دوباره ثبت کنید.")
             }
+            append("\nاعداد تخمینی‌اند و برای ارزیابی بالینی معتبر نیستند.")
         }
         statusText.text = "ثبت پایان یافت؛ گزارش در سوابق ذخیره شد."
     }
