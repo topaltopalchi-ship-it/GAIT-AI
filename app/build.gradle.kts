@@ -1,3 +1,6 @@
+import java.net.URL
+import java.io.InputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -39,10 +42,10 @@ val downloadPoseModel by tasks.registering {
         val target = poseModelFile.asFile
         if (!target.exists() || target.length() < 1_000_000L) {
             target.parentFile.mkdirs()
-            val url = java.net.URL(
+            val url = URL(
                 "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
             )
-            url.openStream().use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+            url.openStream().use { input: InputStream -> target.outputStream().use { output -> input.copyTo(output) } }
         }
         check(target.exists() && target.length() > 1_000_000L) {
             "Pose model download failed. Check internet access and retry."
